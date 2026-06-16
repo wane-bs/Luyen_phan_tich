@@ -6,9 +6,6 @@ data/**/*.db
 data/processed/*.csv
 data/processed/*.parquet
 
-# Generated models
-models/*.pkl
-
 # Generated configs & metrics
 data/configs/model_config.json
 data/configs/training_metrics.json
