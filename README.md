@@ -32,7 +32,7 @@ Hệ thống được thiết kế theo mô hình Modular Pipeline bao gồm 5 g
 ```
 
 1. **Data Pipeline**: Fork dữ liệu từ nguồn SQL Server cá nhân sang SQLite nội bộ, làm sạch và xây dựng ma trận đặc trưng ở cấp độ User (User-level Profile Matrix), bao gồm **Fraud Signal Score** multi-tín hiệu.
-2. **Fraud Label Validation**: Kiểm chứng định lượng ngưỡng nhãn fraud bằng `mightykatun/qwen2.5-math:1.5b` — tính Gini coefficient và Information Value (IV) cho $\theta \in \{2,3,4\}$, tự động chọn $\theta^*$ tối ưu.
+2. **Fraud Label Validation**: Kiểm chứng định lượng ngưỡng nhãn fraud bằng `mightykatun/qwen2.5-math:1.5b` — tính Gini coefficient và Information Value (IV) cho $\theta \in \{2,3,4\}$, tự động chọn $\theta_{\text{opt}}$ tối ưu.
 3. **Modeling**:
    - Tối ưu hóa siêu tham số thích ứng thông qua mô hình ngôn ngữ toán học `qwen2.5-math:1.5b`.
    - Huấn luyện mô hình XGBoost và Logistic Regression bằng phương pháp 5-Fold Stratified Cross-Validation.
@@ -48,12 +48,12 @@ Nhãn `fraud` được tái kiến trúc từ đơn tín hiệu (`security_error
 
 $$S(u) = 2 \cdot \mathbf{1}[\text{sec-err} \geq 3] + 2 \cdot \mathbf{1}[\text{spatiotemporal}=1] + \mathbf{1}[\text{refund-rate}>0.10] + \mathbf{1}[\text{online-rate}>0.70]$$
 
-$$\text{fraud}(u) = \mathbf{1}[S(u) \geq \theta^*], \quad \theta^* = 2 \quad \text{(Qwen validated, IV = 8.18 Strong)}$$
+$$\text{fraud}(u) = \mathbf{1}[S(u) \geq \theta_{\text{opt}}], \quad \theta_{\text{opt}} = 2 \quad \text{(Qwen validated, IV = 8.18 Strong)}$$
 
 | Phiên bản | Fraud Rate | F1-Score | G-Mean | Ý nghĩa |
 |:---|:---:|:---:|:---:|:---|
 | Nhãn cũ (`sec_err≥1`) | 12.3% | ~1.0 (giả tạo) | N/A | Label Pollution |
-| **Nhãn mới (θ*=2)** | **4.95%** | **0.6012** | **0.9379** | Behavioral patterns thực sự |
+| **Nhãn mới (θ_opt=2)** | **4.95%** | **0.6012** | **0.9379** | Behavioral patterns thực sự |
 
 ---
 
@@ -210,7 +210,7 @@ Giao diện sẽ tự động mở tại `http://localhost:8501`. Cho phép bạ
 | Default Risk | XGBoost | 0.6268 ± 0.1051 | 0.1381 ± 0.0768 | 0.3443 ± 0.1027 |
 | **Fraud Detection** | **Logistic Regression** | **0.9800 ± 0.0106** | **0.6012 ± 0.0526** | **0.9379 ± 0.0172** |
 
-> *Fraud Model sử dụng Multi-Signal Label v2 ($\theta^*=2$, IV=8.18, validated by Qwen 2.5 Math)*
+> *Fraud Model sử dụng Multi-Signal Label v2 ($\theta_{\text{opt}}=2$, IV=8.18, validated by Qwen 2.5 Math)*
 
 ---
 
