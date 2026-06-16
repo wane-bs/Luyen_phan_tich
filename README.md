@@ -46,9 +46,9 @@ Hệ thống được thiết kế theo mô hình Modular Pipeline bao gồm 5 g
 
 Nhãn `fraud` được tái kiến trúc từ đơn tín hiệu (`security_error_count >= 1`) sang hệ thống **Weighted Multi-Signal Scoring** được Qwen 2.5 Math kiểm chứng:
 
-$$S_{\text{fraud}}(u) = 2\cdot\mathbb{1}[\text{sec-err} \geq 3] + 2\cdot\mathbb{1}[\text{spatiotemporal}=1] + \mathbb{1}[\text{refund-rate}>0.10] + \mathbb{1}[\text{online-rate}>0.70]$$
+$$S(u) = 2 \cdot \mathbf{1}[\text{sec-err} \geq 3] + 2 \cdot \mathbf{1}[\text{spatiotemporal}=1] + \mathbf{1}[\text{refund-rate}>0.10] + \mathbf{1}[\text{online-rate}>0.70]$$
 
-$$\text{fraud}(u) = \mathbb{1}[S_{\text{fraud}}(u) \geq \theta^{*}], \quad \theta^{*} = 2 \quad \text{(Qwen validated, IV = 8.18 Strong)}$$
+$$\text{fraud}(u) = \mathbf{1}[S(u) \geq \theta^*], \quad \theta^* = 2 \quad \text{(Qwen validated, IV = 8.18 Strong)}$$
 
 | Phiên bản | Fraud Rate | F1-Score | G-Mean | Ý nghĩa |
 |:---|:---:|:---:|:---:|:---|
