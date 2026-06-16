@@ -1,0 +1,42 @@
+# Database replica
+data/raw/*.db
+data/**/*.db
+
+# Generated datasets and features
+data/processed/*.csv
+data/processed/*.parquet
+
+# Generated models
+models/*.pkl
+
+# Generated configs & metrics
+data/configs/model_config.json
+data/configs/training_metrics.json
+data/outputs/
+
+# Credentials
+.env
+.env.local
+.env.*.local
+
+# Python caching & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.ipynb_checkpoints/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Logs and temporary files
+*.log
+logs/
+.DS_Store

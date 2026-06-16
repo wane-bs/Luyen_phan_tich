@@ -1,0 +1,20 @@
+{
+  "datasets": [
+    {
+      "table_name": "cards",
+      "source_query": "SELECT * FROM banking.cards"
+    },
+    {
+      "table_name": "mcc_codes",
+      "source_query": "SELECT * FROM banking.mcc_codes"
+    },
+    {
+      "table_name": "transactions",
+      "source_query": "SELECT * FROM banking.transactions"
+    },
+    {
+      "table_name": "users",
+      "source_query": "SELECT * FROM banking.users"
+    }
+  ]
+}
