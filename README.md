@@ -6,6 +6,22 @@ Dự án tích hợp các mô hình máy học (Logistic Regression, XGBoost), k
 
 ---
 
+### ⚠️ Hướng dẫn Bảo mật & Tuyên bố miễn trừ trách nhiệm (Security Guide & Disclaimer)
+
+*   **Mục đích**: Dự án được xây dựng phục vụ nghiên cứu, giả lập và kiểm thử nghiệp vụ tín dụng nội bộ của Xóm Bank. Mọi quy tắc định mức và thuật toán cần được thẩm định bởi Hội đồng rủi ro chuyên trách trước khi đưa vào thực tế.
+*   **Nguồn dữ liệu**: Dữ liệu giao dịch ngân hàng giả lập được lấy theo cấu trúc bảng của [Xomdata Banking Schema Dataset](https://dataset.xomdata.com/datasets/schema/banking). Dữ liệu thật được bảo vệ nghiêm ngặt và không đẩy lên Git.
+*   **Mô hình sử dụng**:
+    *   **Default Risk**: Huấn luyện bằng XGBoost.
+    *   **Fraud Detection**: Huấn luyện bằng Logistic Regression dựa trên nhãn hành vi Weighted Multi-Signal v2.
+    *   **Label Validation & Hyperparameter Optimization**: Sử dụng mô hình toán học chuyên biệt `mightykatun/qwen2.5-math:1.5b` chạy cục bộ (offline) qua Ollama.
+*   **Chính sách bảo mật (Zero-Trust)**:
+    *   *Local Data Isolation*: Toàn bộ cơ sở dữ liệu SQLite cục bộ, ma trận đặc trưng (`data/processed/`), các file nhị phân mô hình (`models/*.pkl`) được cấu hình loại bỏ nghiêm ngặt tại [.gitignore](./.gitignore).
+    *   *Credential Protection*: Không ghi cứng mật khẩu hay khóa truy cập trong mã nguồn. Thông tin kết nối SQL Server được tải qua tệp cấu hình `.env` cục bộ.
+    *   *Local AI Execution*: Xử lý AI chạy hoàn toàn offline trên máy trạm của doanh nghiệp qua Ollama, bảo vệ thông tin khách hàng.
+*   **Disclaimer**: Hiệu năng mô hình thực tế có thể biến động do thay đổi trong hành vi của đối tượng gian lận (Concept Drift). Tác giả không chịu trách nhiệm pháp lý cho các tổn thất tài chính hoặc rò rỉ dữ liệu phát sinh do cấu hình bảo mật lỏng lẻo từ phía người vận hành.
+
+---
+
 ## 📊 Kiến trúc Hệ thống & Quy trình Hoạt động
 
 Hệ thống được thiết kế theo mô hình Modular Pipeline bao gồm 5 giai đoạn cốt lõi:
@@ -30,9 +46,9 @@ Hệ thống được thiết kế theo mô hình Modular Pipeline bao gồm 5 g
 
 Nhãn `fraud` được tái kiến trúc từ đơn tín hiệu (`security_error_count >= 1`) sang hệ thống **Weighted Multi-Signal Scoring** được Qwen 2.5 Math kiểm chứng:
 
-$$S_{fraud}(u) = 2\cdot\mathbb{1}[\text{sec\_err} \geq 3] + 2\cdot\mathbb{1}[\text{spatiotemporal}=1] + \mathbb{1}[\text{refund\_rate}>0.10] + \mathbb{1}[\text{online\_rate}>0.70]$$
+$$S_{\text{fraud}}(u) = 2\cdot\mathbb{1}[\text{sec-err} \geq 3] + 2\cdot\mathbb{1}[\text{spatiotemporal}=1] + \mathbb{1}[\text{refund-rate}>0.10] + \mathbb{1}[\text{online-rate}>0.70]$$
 
-$$\text{fraud}(u) = \mathbb{1}[S_{fraud}(u) \geq \theta^*], \quad \theta^* = 2 \text{ (Qwen validated, IV=8.18 Strong)}$$
+$$\text{fraud}(u) = \mathbb{1}[S_{\text{fraud}}(u) \geq \theta^{*}], \quad \theta^{*} = 2 \quad \text{(Qwen validated, IV = 8.18 Strong)}$$
 
 | Phiên bản | Fraud Rate | F1-Score | G-Mean | Ý nghĩa |
 |:---|:---:|:---:|:---:|:---|
@@ -201,27 +217,7 @@ Giao diện sẽ tự động mở tại `http://localhost:8501`. Cho phép bạ
 ## 📚 Tài liệu tham khảo (References)
 - Chi tiết về Khung toán học định mức, thiết kế quy trình chấm điểm và các nguồn lực nghiên cứu (bao gồm tập dữ liệu và mô hình Ollama) được lưu trữ tại [Tài liệu Tham khảo](./reports/docs/tham_khao.md).
 
----
 
-## 🔒 Chính sách Bảo mật & Tuyên bố miễn trừ trách nhiệm (Security Policy & Disclaimer)
-
-### 1. Kết quả kiểm toán bảo mật dự án (Security Audit Results)
-Hệ thống đã được kiểm tra bảo mật tự động và rà soát thủ công để đảm bảo tuân thủ nguyên tắc **Zero-Trust**:
-- **Kiểm soát tệp tin cấu hình (`.gitignore`)**:
-  - Tệp [.gitignore](./.gitignore) đã được cấu hình chặt chẽ để loại bỏ hoàn toàn các tệp cơ sở dữ liệu nội bộ (`data/raw/*.db`, `data/**/*.db`), ma trận đặc trưng trung gian (`data/processed/`), các tệp mô hình đã huấn luyện (`models/*.pkl`), và báo cáo chi tiết (`data/outputs/`).
-  - Các thông tin cấu hình nhạy cảm (`.env`, `.env.local`) và cấu hình IDE (`.vscode/`, `.idea/`) đều được loại trừ hoàn toàn khỏi tầm giám sát của Git để tránh rò rỉ dữ liệu.
-- **Rà soát mã nguồn (Credential Protection)**:
-  - Mã nguồn trong thư mục `src/` đã được kiểm tra và đảm bảo không chứa bất kỳ khóa bảo mật, mật khẩu hay API Token nào ghi cứng (hardcoded).
-  - Kết nối tới cơ sở dữ liệu ngoài (SQL Server) hoàn toàn thông qua biến môi trường nạp từ tệp tin cục bộ `.env` thông qua thư viện `python-dotenv`.
-- **Tập trung dữ liệu và AI (Local AI Execution)**:
-  - Toàn bộ dữ liệu xử lý trong Data Pipeline chỉ chạy cục bộ trên máy trạm của doanh nghiệp.
-  - Bộ xác thực nhãn **Qwen 2.5 Math** chạy ngoại tuyến hoàn toàn qua Ollama cục bộ, đảm bảo không gửi bất kỳ thông tin nhạy cảm nào của khách hàng lên dịch vụ đám mây bên thứ ba.
-
-### 2. Tuyên bố miễn trừ trách nhiệm (Disclaimer)
-> [!WARNING]
-> - **Mục đích Thử nghiệm**: Dự án này được xây dựng cho mục đích nghiên cứu, giả lập và thử nghiệm nghiệp vụ tín dụng nội bộ. Các thuật toán định mức, chốt chặn rủi ro và mô hình máy học cần được đánh giá bổ sung bởi Hội đồng rủi ro chuyên trách trước khi đưa vào ứng dụng thực tế.
-> - **Không bảo đảm hiệu năng tuyệt đối**: Mặc dù mô hình phát hiện gian lận đạt chỉ số $ROC-AUC = 0.98$, hiệu năng thực tế có thể dao động tùy thuộc vào sự thay đổi trong hành vi của đối tượng gian lận (Concept Drift) và chất lượng dữ liệu đầu vào.
-> - **Trách nhiệm bảo mật**: Người dùng hệ thống chịu trách nhiệm bảo mật tệp `.env` chứa khóa truy cập SQL Server trên môi trường Production của mình. Tác giả không chịu trách nhiệm cho bất kỳ tổn thất tài chính hoặc rò rỉ dữ liệu nào phát sinh từ việc sử dụng mã nguồn này sai mục đích hoặc bảo quản khóa cấu hình lỏng lẻo.
 
 ---
 
