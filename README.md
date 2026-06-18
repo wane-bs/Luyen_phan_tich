@@ -11,9 +11,9 @@ Dự án tích hợp các mô hình máy học (Logistic Regression, XGBoost), k
 *   **Mục đích**: Dự án được xây dựng phục vụ nghiên cứu, giả lập và kiểm thử nghiệp vụ tín dụng nội bộ của Xóm Bank. Mọi quy tắc định mức và thuật toán cần được thẩm định bởi Hội đồng rủi ro chuyên trách trước khi đưa vào thực tế.
 *   **Nguồn dữ liệu**: Dữ liệu giao dịch ngân hàng giả lập được lấy theo cấu trúc bảng của [Xomdata Banking Schema Dataset](https://dataset.xomdata.com/datasets/schema/banking). Dữ liệu thật được bảo vệ nghiêm ngặt và không đẩy lên Git.
 *   **Mô hình sử dụng**:
-    *   **Default Risk**: Huấn luyện bằng XGBoost.
-    *   **Fraud Detection**: Huấn luyện bằng Logistic Regression dựa trên nhãn hành vi Weighted Multi-Signal v2.
-    *   **Label Validation & Hyperparameter Optimization**: Sử dụng mô hình toán học chuyên biệt `mightykatun/qwen2.5-math:1.5b` chạy cục bộ (offline) qua Ollama.
+    *   **Default Risk**: Huấn luyện và so sánh song song Hồi quy Logistic, XGBoost và Balanced Random Forest (BRFC), chọn XGBoost làm mô hình triển khai chính.
+    *   **Fraud Detection**: Huấn luyện và so sánh song song Hồi quy Logistic, XGBoost và Balanced Random Forest (BRFC), chọn Hồi quy Logistic làm mô hình triển khai chính dựa trên nhãn hành vi Weighted Multi-Signal v2.
+    *   **Label Validation & Hyperparameter Optimization**: Sử dụng mô hình toán học chuyên biệt `mightykatun/qwen2.5-math:1.5b` chạy cục bộ (offline) qua Ollama làm bộ kiểm toán logic và thiết lập khoảng chặn.
 *   **Chính sách bảo mật (Zero-Trust)**:
     *   *Local Data Isolation*: Toàn bộ cơ sở dữ liệu SQLite cục bộ, ma trận đặc trưng (`data/processed/`), các file nhị phân mô hình (`models/*.pkl`) được cấu hình loại bỏ nghiêm ngặt tại [.gitignore](./.gitignore).
     *   *Credential Protection*: Không ghi cứng mật khẩu hay khóa truy cập trong mã nguồn. Thông tin kết nối SQL Server được tải qua tệp cấu hình `.env` cục bộ.
@@ -203,12 +203,17 @@ Giao diện sẽ tự động mở tại `http://localhost:8501`. Cho phép bạ
 
 ---
 
-## 📈 Kết quả Mô hình (Phiên bản hiện tại)
+## 📈 Kết quả Mô hình (Phiên bản hiện tại - 5-Fold OOF Average)
 
-| Mô hình | Thuật toán | ROC-AUC | F1-Score | G-Mean |
-|:---|:---:|:---:|:---:|:---:|
-| Default Risk | XGBoost | 0.6268 ± 0.1051 | 0.1381 ± 0.0768 | 0.3443 ± 0.1027 |
-| **Fraud Detection** | **Logistic Regression** | **0.9800 ± 0.0106** | **0.6012 ± 0.0526** | **0.9379 ± 0.0172** |
+| Mô hình | Thuật toán | ROC-AUC | PR-AUC | F1-Score | G-Mean |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| Default Risk | Hồi quy Logistic | $0.5782 \pm 0.0496$ | $0.1340 \pm 0.0527$ | $0.0950 \pm 0.0126$ | $0.5180 \pm 0.0352$ |
+| Default Risk | **XGBoost (Được chọn)** | **$0.6276 \pm 0.0856$** | $0.0931 \pm 0.0321$ | $0.0957 \pm 0.0650$ | $0.2591 \pm 0.1407$ |
+| Default Risk | Balanced Random Forest | $0.6136 \pm 0.1033$ | $0.1236 \pm 0.0628$ | **$0.1023 \pm 0.0260$** | **$0.5192 \pm 0.0891$** |
+|--- | --- | --- | --- | --- | --- |
+| **Fraud Detection** | **Hồi quy Logistic (Được chọn)** | **$0.9800 \pm 0.0106$** | **$0.7155 \pm 0.1351$** | **$0.6012 \pm 0.0526$** | $0.9379 \pm 0.0172$ |
+| Fraud Detection | XGBoost | $0.9729 \pm 0.0100$ | $0.6582 \pm 0.1134$ | $0.5953 \pm 0.0577$ | $0.7863 \pm 0.0473$ |
+| Fraud Detection | Balanced Random Forest | $0.9775 \pm 0.0095$ | $0.6541 \pm 0.0806$ | $0.5032 \pm 0.0318$ | **$0.9467 \pm 0.0069$** |
 
 > *Fraud Model sử dụng Multi-Signal Label v2 ($\theta_{\text{opt}}=2$, IV=8.18, validated by Qwen 2.5 Math)*
 

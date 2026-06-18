@@ -28,7 +28,11 @@ Quá trình triển khai kỹ thuật của dự án được thực hiện mộ
 
 #### Giai đoạn 3: Huấn luyện và Đánh giá Mô hình (Model Training & Evaluation)
 * **Kiểm định chéo phân tầng (Stratified K-Fold Cross-Validation)**: Thay thế việc phân tách đơn lẻ bằng kiểm định chéo 5-Fold Stratified ($K = 5$) nhằm loại bỏ sự ngẫu nhiên và đảm bảo tỷ lệ phân phối nhãn đồng đều trên mỗi fold.
-* **Chuẩn hóa chống rò rỉ (Leakage-free Scaling)**: Khởi tạo và khớp `StandardScaler` riêng biệt trên tập huấn luyện của mỗi fold, sau đó biến đổi cho tập kiểm thử tương ứng. Phương pháp này ngăn chặn triệt để sự rò rỉ thông tin phân phối (Data Leakage) từ tập kiểm thử ngược về tập huấn luyện.
+* **Chuẩn hóa chống rò rỉ (Leakage-free Scaling)**: Khởi tạo và khớp `StandardScaler` riêng biệt trên tập huấn luyện của mỗi fold, sau đó biến đổi cho tập kiểm thử tương ứng. Phương pháp này ngăn chặn triệt để sự rò rỉ thông tin phân phối (Data Leakage) từ tập kiểm thử ngược về tập huấn luyện. Đối với các thuật toán dựa trên cây (như Balanced Random Forest), scaler sẽ được bỏ qua nhằm bảo toàn tính chất dữ liệu gốc.
+* **Hệ thống thuật toán đối sánh**: Tích hợp thuật toán **Balanced Random Forest Classifier (BRFC)** chuyên biệt cho dữ liệu mất cân bằng nghiêm trọng bên cạnh Hồi quy Logistic và XGBoost.
+* **Tối ưu hóa siêu tham số tự động (GridSearchCV & Qwen-Math)**:
+  - GridSearchCV được áp dụng cục bộ trong quá trình Cross-Validation để tìm kiếm lưới tham số tối ưu cho BRFC (`n_estimators`, `max_depth`, `min_samples_leaf`).
+  - Sử dụng mô hình toán học **Qwen 2.5 Math** qua Ollama để đề xuất và thiết lập các khoảng chặn an toàn cho biến liên tục (`credit_score_min`, `current_age_min`) cùng tham số điều hòa chống quá khớp cho XGBoost.
 * **Hệ thống chỉ số tối ưu cho nhãn lệch**: Bổ sung Precision-Recall Curve (PRC), F1-Score và chỉ số G-Mean ($G\text{-Mean} = \sqrt{\text{Recall} \times \text{Specificity}}$) để đánh giá toàn diện hiệu năng của thuật toán trên các nhóm nhãn rủi ro thiểu số.
 * **Huấn luyện và Lưu trữ**: Đóng gói mô hình tối ưu nhất dưới dạng file `.pkl` trong thư mục `models/` sau khi huấn luyện lại trên toàn bộ tập dữ liệu (Full Dataset Fit) bằng cấu hình siêu tham số tối ưu đã chọn lọc qua kiểm định chéo.
 
@@ -49,7 +53,6 @@ Trong quá trình thực thi, đội ngũ phát triển đã xử lý thành cô
   1. **Loại bỏ đặc trưng rò rỉ (Feature Exclusion)**: Loại bỏ hoàn toàn 4 đặc trưng tài chính thô là `yearly_income`, `total_debt`, `total_credit_limit`, và `net_spend` khỏi tập dữ liệu huấn luyện của mô hình Default Risk, chỉ giữ lại các biến hành vi giao dịch nguyên bản và điểm FICO (`credit_score`).
   2. **Tái kiểm định hoán vị đặc trưng (PFI)**: Sau khi loại bỏ đặc trưng rò rỉ, điểm số quan trọng nhất dịch chuyển về các thuộc tính hành vi sạch: Điểm FICO (`credit_score` gây giảm **0.5918** điểm F1) và Tuổi (`current_age` gây giảm **0.5352** điểm F1). Các đặc trưng thô không còn gây nhiễu cho mô hình.
   3. **Tái kiểm định Monte Carlo**: Thực hiện bơm nhiễu Gaussian tăng dần ($0\% \to 100\%$ độ lệch chuẩn) vào các đặc trưng hành vi mới trong mô hình. Đồ thị `default_mc_leakage.png` ghi nhận các đường cong hiệu năng sụt giảm rất thoai thoải và đều đặn (F1-score và G-Mean duy trì tính ổn định, không sụp đổ đột ngột), chứng minh mô hình không còn bị rò rỉ mục tiêu và đạt tính bền vững cao dưới tác động nhiễu.
-
 
 #### B. Lỗi không tương thích định dạng đầu vào trong Sandbox (KeyError & Shape Mismatch)
 * **Triệu chứng**: Khi người dùng nhấn nút chạy giả lập trên giao diện Sandbox Streamlit, hệ thống báo lỗi `KeyError` hoặc crash do thiếu các trường đặc trưng như `refund_tx_count`, `insufficient_balance_count`, v.v.
@@ -78,4 +81,12 @@ Trong quá trình thực thi, đội ngũ phát triển đã xử lý thành cô
     1.  **Cắt ngắn dữ liệu đầu vào**: Hàm `_trim_metrics()` chỉ trích xuất các cột AUC, F1, G-Mean trước khi đưa vào prompt, giảm context window từ 4096 xuống 2048 tokens.
     2.  **Giới hạn token đầu ra**: Thêm tham số `num_predict=600` trong Ollama options để bắt buộc dừng sinh văn bản sau 600 tokens.
 
+#### E. Lỗi không đồng bộ Scaler khi sử dụng Balanced Random Forest (BRFC)
+* **Triệu chứng**: Khi tích hợp BRFC vào stress-test Monte Carlo hoặc chạy dự báo thời gian thực trên Streamlit Dashboard, hệ thống báo lỗi `ValueError` hoặc tính toán ra kết quả rủi ro sai lệch nghiêm trọng.
+* **Nguyên nhân**: Thuật toán Balanced Random Forest là mô hình dạng cây (Tree-based model), bản chất không nhạy cảm với tỷ lệ phân phối đặc trưng và không cần chuẩn hóa dữ liệu đầu vào. Việc cố tình áp dụng `StandardScaler.transform` của Logistic Regression lên BRFC dẫn đến sai số phân phối.
+* **Giải pháp khắc phục**: Điều chỉnh mã nguồn tại [monte_carlo_analysis.py](file:///f:/data_project/src/modeling/monte_carlo_analysis.py) and [app.py](file:///f:/data_project/src/app.py) để tự động nhận diện loại mô hình (`model_type == 'brf'`). Nếu là BRFC, hệ thống sẽ bỏ qua bước scaling dữ liệu và truyền trực tiếp dữ liệu thô (raw features) vào hàm `predict` / `predict_proba`.
 
+#### F. Lỗi KeyError các đặc trưng phái sinh rò rỉ của Fraud trong mô hình Default
+* **Triệu chứng**: Khi chạy giả lập phê duyệt thẻ tín dụng trên Streamlit, hệ thống báo lỗi `KeyError: 'security_error_count_heavy'` hoặc `'high_online_rate'` khi thực hiện dự báo Default Risk.
+* **Nguyên nhân**: Mô hình Default Risk được huấn luyện có sử dụng các biến phái sinh hành vi được tạo ra từ mô hình Fraud (`security_error_count_heavy`, `high_online_rate`, `fraud_signal_score`). Tuy nhiên, Form nhập liệu trên Sandbox Streamlit chỉ cung cấp các biến cơ bản, dẫn đến việc dictionary đầu vào thiếu các khóa phái sinh này.
+* **Giải pháp khắc phục**: Tái cấu trúc logic tiền xử lý trong [app.py](file:///f:/data_project/src/app.py). Gom nhóm và tính toán toàn bộ các biến phái sinh hành vi (bao gồm các chỉ số của Fraud) trước khi phân tách dữ liệu đầu vào cho hai mô hình Default Risk (`input_def`) và Fraud Detection (`input_fraud`).

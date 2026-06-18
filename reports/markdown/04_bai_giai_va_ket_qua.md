@@ -13,10 +13,11 @@ Quy trình đánh giá hiệu năng mô hình sử dụng kiểm định chéo p
 
 | Thuật toán | ROC-AUC (Mean ± Std) | PR-AUC (Mean ± Std) | F1-Score (Mean ± Std) | G-Mean (Mean ± Std) | Đánh giá nghiệp vụ |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **Logistic Regression** | $0.5873 \pm 0.0646$ | $\mathbf{0.0594 \pm 0.0139}$ | $\mathbf{0.1030 \pm 0.0232}$ | $\mathbf{0.5581 \pm 0.0691}$ | Khả năng hội tụ tuyến tính ổn định, độ bao phủ tốt hơn trên tập đặc trưng hành vi sạch. |
-| **XGBoost (Được chọn)** | $\mathbf{0.5884 \pm 0.0433}$ | $0.0550 \pm 0.0107$ | $0.0507 \pm 0.0442$ | $0.1627 \pm 0.1374$ | Đạt ROC-AUC trung bình cao nhất, được chọn để đảm bảo tính nhất quán của hệ thống. |
+| **Logistic Regression** | $0.5782 \pm 0.0496$ | $\mathbf{0.1340 \pm 0.0527}$ | $0.0950 \pm 0.0126$ | $0.5180 \pm 0.0352$ | Khả năng hội tụ tuyến tính ổn định, độ bao phủ tốt trên tập đặc trưng hành vi sạch. |
+| **XGBoost (Được chọn)** | $\mathbf{0.6276 \pm 0.0856}$ | $0.0931 \pm 0.0321$ | $0.0957 \pm 0.0650$ | $0.2591 \pm 0.1407$ | Đạt ROC-AUC trung bình cao nhất, được chọn để làm bộ dự báo xác suất vỡ nợ chính. |
+| **Balanced Random Forest** | $0.6136 \pm 0.1033$ | $0.1236 \pm 0.0628$ | $\mathbf{0.1023 \pm 0.0260}$ | $\mathbf{0.5192 \pm 0.0891}$ | Đạt F1-score và G-Mean tốt nhất nhờ cơ chế downsampling mẫu đa số trên các cây quyết định con. |
 
-* **Quyết định triển khai**: Lựa chọn **XGBoost** (ROC-AUC $0.5884$) để làm bộ dự báo xác suất vỡ nợ $P_{\text{Default}}$. Sự sụt giảm hiệu năng so với ban đầu phản ánh hiệu năng thực tế, khách quan của mô hình hành vi khi không còn rò rỉ thông tin từ thu nhập hay nợ cũ.
+* **Quyết định triển khai**: Lựa chọn **XGBoost** (ROC-AUC $0.6276$) để làm bộ dự báo xác suất vỡ nợ $P_{\text{Default}}$. Mặc dù Balanced Random Forest có F1-Score và G-Mean cân bằng tốt hơn trên mẫu thiểu số, XGBoost có diện tích dưới đường cong ROC lớn nhất và khả năng tích hợp linh hoạt các ràng buộc điều hòa do Qwen 2.5 Math đề xuất, giúp giảm thiểu rủi ro overfitting trong điều kiện nhiễu.
 
 #### B. Mô hình Phát hiện Gian lận (Fraud Detection Model — Multi-Signal v2)
 * **Phân phối nhãn**: 4.95% Fraud (Gian lận) / 95.05% Non-Fraud (Hợp lệ). *(Tái định nghĩa từ 12.3% của phiên bản cũ — loại bỏ Label Pollution)*
@@ -24,10 +25,11 @@ Quy trình đánh giá hiệu năng mô hình sử dụng kiểm định chéo p
 
 | Thuật toán | ROC-AUC (Mean ± Std) | PR-AUC (Mean ± Std) | F1-Score (Mean ± Std) | G-Mean (Mean ± Std) | Đánh giá nghiệp vụ |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **Logistic Regression (Được chọn)** | $\mathbf{0.9800 \pm 0.0106}$ | $\mathbf{0.7155 \pm 0.1351}$ | $\mathbf{0.6012 \pm 0.0526}$ | $\mathbf{0.9379 \pm 0.0172}$ | Học từ behavioral patterns thực sự. G-Mean=0.9379 chứng tỏ phân loại cân bằng cả 2 class. |
-| **XGBoost** | $0.9729 \pm 0.0100$ | $0.6582 \pm 0.1134$ | $0.5953 \pm 0.0577$ | $0.7863 \pm 0.0473$ | Hiệu năng tốt nhưng khém hơn LR trên tập nhãn có chất lượng cao. |
+| **Logistic Regression (Được chọn)** | $\mathbf{0.9800 \pm 0.0106}$ | $\mathbf{0.7155 \pm 0.1351}$ | $\mathbf{0.6012 \pm 0.0526}$ | $0.9379 \pm 0.0172$ | Học từ các hành vi thực tế. Đạt PR-AUC và F1-score cao nhất. |
+| **XGBoost** | $0.9729 \pm 0.0100$ | $0.6582 \pm 0.1134$ | $0.5953 \pm 0.0577$ | $0.7863 \pm 0.0473$ | Hiệu năng phân loại rất cao nhưng kém hơn LR một chút. |
+| **Balanced Random Forest** | $0.9775 \pm 0.0095$ | $0.6541 \pm 0.0806$ | $0.5032 \pm 0.0318$ | $\mathbf{0.9467 \pm 0.0069}$ | Đạt độ cân bằng tốt nhất giữa hai lớp (G-Mean cao nhất 0.9467). |
 
-* **Quyết định triển khai**: Lựa chọn **Logistic Regression** (ROC-AUC $0.9800$, G-Mean $0.9379$). So sánh với phiên bản cũ (F1 $\approx 1.0$, 0 False Negatives — dấu hiệu nhãn quá đơn giản), phân tích mới có F1=0.6012 phản ánh độ khó thực tế khi phân loại nhãn chất lượng cao.
+* **Quyết định triển khai**: Lựa chọn **Logistic Regression** (ROC-AUC $0.9800$, G-Mean $0.9379$, F1 $0.6012$). So sánh với phiên bản cũ (F1 $\approx 1.0$, 0 False Negatives — dấu hiệu nhãn quá đơn giản), phân tích mới phản ánh độ khó thực tế khi phân loại nhãn chất lượng cao. Balanced Random Forest cũng là ứng viên xuất sắc với G-Mean $0.9467$, có thể sử dụng làm bộ kiểm chứng đối kháng.
 
 ---
 
@@ -48,7 +50,7 @@ Quy trình đánh giá hiệu năng mô hình sử dụng kiểm định chéo p
 #### A. Phân tích Permutation Feature Importance (PFI) sau cải tiến
 Hệ thống tính toán độ sụt giảm hiệu năng ($F1$-Score) sau khi loại bỏ các biến rò rỉ:
 * **Mô hình Default Risk**: Trọng số của `total_debt` và `yearly_income` đã được triệt tiêu hoàn toàn. Độ sụt giảm hiệu năng lớn nhất chuyển dịch về điểm FICO `credit_score` (giảm **0.5533** điểm F1) và Tuổi `current_age` (giảm **0.5392** điểm F1). Điều này xác nhận mô hình đang dự báo rủi ro dựa trên độ tín nhiệm thực tế và độ tuổi của khách hàng thay vì sao chép quy tắc gán nhãn.
-* **Mô hình Fraud Detection (Multi-Signal v2)**: `total_tx_count` gây sụt giảm **0.2982** điểm F1, `refund_rate` gây sụt giảm **0.0434** điểm F1. Đây là behavioral patterns thực sự của gian lận (không còn phụ thuộc vào `security_error_count` đã bị exclude).
+* **Mô hình Fraud Detection (Multi-Signal v2)**: `total_tx_count` gây sụt giảm **0.2982** điểm F1, `refund_rate` gây sụt giảm **0.0434** điểm F1. Đây là các hành vi thực chất của gian lận (không còn phụ thuộc vào `security_error_count` đã bị loại bỏ).
 
 #### B. Phân tích mô phỏng Monte Carlo (Gaussian Noise Injection) sau cải tiến
 Đường cong suy giảm hiệu năng trong biểu đồ `data/default_mc_leakage.png` ghi nhận:
@@ -66,7 +68,7 @@ Sau khi chạy tối ưu hóa trước huấn luyện qua mô hình `mightykatun
 *   **Tham số XGBoost**: `max_depth = 6`, `min_child_weight = 3.0`, `reg_alpha = 0.1`, `reg_lambda = 1.0`
 
 #### B. Phân tích kiểm định toán học tự động (Mathematical Audit)
-Báo cáo kiểm định độc lập tại [model_audit_report.txt](file:///f:/data_project/data/model_audit_report.txt) chỉ rõ sự ảnh hưởng của lệch phân phối mẫu lên chỉ số đánh giá:
+Báo cáo kiểm định độc lập tại [model_audit_report.txt](file:///f:/data_project/data/outputs/model_audit_report.txt) chỉ rõ sự ảnh hưởng của lệch phân phối mẫu lên chỉ số đánh giá:
 
 *   **Default Risk Model (Độ chính xác toàn cục: $0.6095$)**:
     $$\text{Accuracy}_{\text{default}} = \frac{1166 (\text{TN}) + 53 (\text{TP})}{1914 (\text{N}) + 86 (\text{P})} = \frac{1219}{2000} = 0.6095$$
