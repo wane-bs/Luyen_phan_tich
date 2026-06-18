@@ -8,3 +8,4 @@ streamlit
 matplotlib
 seaborn
 numpy
+imbalanced-learn>=0.10.0

@@ -4,7 +4,7 @@ import pickle
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -12,6 +12,7 @@ from sklearn.metrics import (
     precision_recall_curve, f1_score, auc, confusion_matrix
 )
 from xgboost import XGBClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
 
 def compute_g_mean(y_true, y_pred):
     """Calculate Geometric Mean (G-Mean) of sensitivity and specificity."""
@@ -201,9 +202,12 @@ def train_and_evaluate():
     lr_oof_preds = np.zeros(len(df))
     xgb_oof_probs = np.zeros(len(df))
     xgb_oof_preds = np.zeros(len(df))
+    brf_oof_probs = np.zeros(len(df))
+    brf_oof_preds = np.zeros(len(df))
     
     lr_metrics = {'auc': [], 'pr_auc': [], 'f1': [], 'gmean': []}
     xgb_metrics = {'auc': [], 'pr_auc': [], 'f1': [], 'gmean': []}
+    brf_metrics = {'auc': [], 'pr_auc': [], 'f1': [], 'gmean': []}
 
     for fold, (train_idx, test_idx) in enumerate(skf.split(X_def, y_def)):
         X_train, X_test = X_def.iloc[train_idx], X_def.iloc[test_idx]
@@ -275,7 +279,41 @@ def train_and_evaluate():
         xgb_metrics['f1'].append(f1_xgb)
         xgb_metrics['gmean'].append(gmean_xgb)
         
-        print(f"Fold {fold+1} Default Model - LR AUC: {auc_lr:.4f} | XGB AUC: {auc_xgb:.4f}")
+        # 3. Balanced Random Forest (GridSearchCV)
+        brf_param_grid = {
+            'n_estimators': [100, 300, 500],
+            'max_depth': [4, 6],
+            'min_samples_leaf': [2, 4]
+        }
+        brf_grid = GridSearchCV(
+            estimator=BalancedRandomForestClassifier(replacement=False, random_state=42, n_jobs=-1),
+            param_grid=brf_param_grid,
+            scoring='average_precision',
+            cv=3,
+            n_jobs=-1
+        )
+        brf_grid.fit(X_train, y_train)
+        best_brf = brf_grid.best_estimator_
+        
+        y_prob_brf = best_brf.predict_proba(X_test)[:, 1]
+        y_pred_brf = best_brf.predict(X_test)
+        
+        brf_oof_probs[test_idx] = y_prob_brf
+        brf_oof_preds[test_idx] = y_pred_brf
+        
+        # Metrics BRF
+        auc_brf = roc_auc_score(y_test, y_prob_brf)
+        prec_brf, rec_brf, _ = precision_recall_curve(y_test, y_prob_brf)
+        pr_auc_brf = auc(rec_brf, prec_brf)
+        f1_brf = f1_score(y_test, y_pred_brf)
+        gmean_brf = compute_g_mean(y_test, y_pred_brf)
+        
+        brf_metrics['auc'].append(auc_brf)
+        brf_metrics['pr_auc'].append(pr_auc_brf)
+        brf_metrics['f1'].append(f1_brf)
+        brf_metrics['gmean'].append(gmean_brf)
+        
+        print(f"Fold {fold+1} Default Model - LR AUC: {auc_lr:.4f} | XGB AUC: {auc_xgb:.4f} | BRF AUC: {auc_brf:.4f}")
 
     print("\n" + "-"*40)
     print(" SUMMARY METRICS (5-FOLD OOF AVERAGE) ")
@@ -290,6 +328,11 @@ def train_and_evaluate():
     print(f"  PR-AUC  : {np.mean(xgb_metrics['pr_auc']):.4f} +/- {np.std(xgb_metrics['pr_auc']):.4f}")
     print(f"  F1-Score: {np.mean(xgb_metrics['f1']):.4f} +/- {np.std(xgb_metrics['f1']):.4f}")
     print(f"  G-Mean  : {np.mean(xgb_metrics['gmean']):.4f} +/- {np.std(xgb_metrics['gmean']):.4f}")
+    print("Balanced Random Forest (Default Risk):")
+    print(f"  ROC-AUC : {np.mean(brf_metrics['auc']):.4f} +/- {np.std(brf_metrics['auc']):.4f}")
+    print(f"  PR-AUC  : {np.mean(brf_metrics['pr_auc']):.4f} +/- {np.std(brf_metrics['pr_auc']):.4f}")
+    print(f"  F1-Score: {np.mean(brf_metrics['f1']):.4f} +/- {np.std(brf_metrics['f1']):.4f}")
+    print(f"  G-Mean  : {np.mean(brf_metrics['gmean']):.4f} +/- {np.std(brf_metrics['gmean']):.4f}")
 
     # Plot Combined ROC and PR curves
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
@@ -297,8 +340,10 @@ def train_and_evaluate():
     # ROC Plot
     fpr_lr, tpr_lr, _ = roc_curve(y_def, lr_oof_probs)
     fpr_xgb, tpr_xgb, _ = roc_curve(y_def, xgb_oof_probs)
+    fpr_brf, tpr_brf, _ = roc_curve(y_def, brf_oof_probs)
     ax1.plot(fpr_lr, tpr_lr, label=f'Logistic Regression (AUC = {roc_auc_score(y_def, lr_oof_probs):.3f})')
     ax1.plot(fpr_xgb, tpr_xgb, label=f'XGBoost (AUC = {roc_auc_score(y_def, xgb_oof_probs):.3f})')
+    ax1.plot(fpr_brf, tpr_brf, label=f'Balanced Random Forest (AUC = {roc_auc_score(y_def, brf_oof_probs):.3f})')
     ax1.plot([0, 1], [0, 1], 'k--', label='Random Guess')
     ax1.set_xlabel('False Positive Rate')
     ax1.set_ylabel('True Positive Rate')
@@ -309,8 +354,10 @@ def train_and_evaluate():
     # PR Plot
     prec_lr_full, rec_lr_full, _ = precision_recall_curve(y_def, lr_oof_probs)
     prec_xgb_full, rec_xgb_full, _ = precision_recall_curve(y_def, xgb_oof_probs)
+    prec_brf_full, rec_brf_full, _ = precision_recall_curve(y_def, brf_oof_probs)
     ax2.plot(rec_lr_full, prec_lr_full, label=f'Logistic Regression (PR-AUC = {auc(rec_lr_full, prec_lr_full):.3f})')
     ax2.plot(rec_xgb_full, prec_xgb_full, label=f'XGBoost (PR-AUC = {auc(rec_xgb_full, prec_xgb_full):.3f})')
+    ax2.plot(rec_brf_full, prec_brf_full, label=f'Balanced Random Forest (PR-AUC = {auc(rec_brf_full, prec_brf_full):.3f})')
     ax2.set_xlabel('Recall')
     ax2.set_ylabel('Precision')
     ax2.set_title('Precision-Recall Curve (Default Risk - OOF)')
@@ -326,7 +373,13 @@ def train_and_evaluate():
     # Select best architecture by OOF ROC-AUC
     mean_auc_xgb = np.mean(xgb_metrics['auc'])
     mean_auc_lr = np.mean(lr_metrics['auc'])
-    if mean_auc_xgb >= mean_auc_lr:
+    mean_auc_brf = np.mean(brf_metrics['auc'])
+    
+    best_def_auc = max(mean_auc_xgb, mean_auc_lr, mean_auc_brf)
+    if best_def_auc == mean_auc_brf:
+        print("\n--> Balanced Random Forest selected as the best Default risk architecture.")
+        best_def_type = 'brf'
+    elif best_def_auc == mean_auc_xgb:
         print("\n--> XGBoost selected as the best Default risk architecture.")
         best_def_type = 'xgb'
     else:
@@ -337,7 +390,22 @@ def train_and_evaluate():
     final_scaler_def = StandardScaler()
     X_def_scaled = final_scaler_def.fit_transform(X_def)
     
-    if best_def_type == 'xgb':
+    if best_def_type == 'brf':
+        brf_param_grid = {
+            'n_estimators': [100, 300, 500],
+            'max_depth': [4, 6],
+            'min_samples_leaf': [2, 4]
+        }
+        brf_grid_full = GridSearchCV(
+            estimator=BalancedRandomForestClassifier(replacement=False, random_state=42, n_jobs=-1),
+            param_grid=brf_param_grid,
+            scoring='average_precision',
+            cv=3,
+            n_jobs=-1
+        )
+        brf_grid_full.fit(X_def, y_def)
+        best_def_model = brf_grid_full.best_estimator_
+    elif best_def_type == 'xgb':
         pos_weight_def_full = (len(y_def) - sum(y_def)) / sum(y_def) if sum(y_def) > 0 else 1.0
         X_def_noisy = inject_train_noise_and_clip(X_def, ['credit_score', 'current_age'], model_config)
         X_def_combined = pd.concat([X_def, X_def_noisy], axis=0)
@@ -367,7 +435,7 @@ def train_and_evaluate():
 
     # --- Permutation Feature Importance & Monte Carlo for Default Risk ---
     print("\nCalculating Permutation Feature Importance for Default Risk...")
-    pfi_f1, pfi_gmean = run_permutation_importance(best_def_model, X_def, y_def, is_xgb=(best_def_type=='xgb'), scaler=final_scaler_def)
+    pfi_f1, pfi_gmean = run_permutation_importance(best_def_model, X_def, y_def, is_xgb=(best_def_type in ['xgb', 'brf']), scaler=final_scaler_def)
     print("\nPermutation Feature Importance (Top Features causing F1 Score Drop):")
     sorted_pfi = sorted(pfi_f1.items(), key=lambda x: x[1], reverse=True)
     for feat, score in sorted_pfi[:7]:
@@ -375,7 +443,7 @@ def train_and_evaluate():
 
     print("\nRunning Monte Carlo Noise Injection Simulator for Default Risk...")
     mc_results_def = run_monte_carlo_noise_test(
-        best_def_model, X_def, y_def, is_xgb=(best_def_type=='xgb'), 
+        best_def_model, X_def, y_def, is_xgb=(best_def_type in ['xgb', 'brf']), 
         scaler=final_scaler_def, suspect_features=suspect_features_def, num_simulations=50
     )
     
@@ -422,9 +490,12 @@ def train_and_evaluate():
     lr_oof_preds_f = np.zeros(len(df))
     xgb_oof_probs_f = np.zeros(len(df))
     xgb_oof_preds_f = np.zeros(len(df))
+    brf_oof_probs_f = np.zeros(len(df))
+    brf_oof_preds_f = np.zeros(len(df))
     
     lr_metrics_f = {'auc': [], 'pr_auc': [], 'f1': [], 'gmean': []}
     xgb_metrics_f = {'auc': [], 'pr_auc': [], 'f1': [], 'gmean': []}
+    brf_metrics_f = {'auc': [], 'pr_auc': [], 'f1': [], 'gmean': []}
 
     for fold, (train_idx, test_idx) in enumerate(skf.split(X_frd, y_frd)):
         X_train, X_test = X_frd.iloc[train_idx], X_frd.iloc[test_idx]
@@ -482,7 +553,41 @@ def train_and_evaluate():
         xgb_metrics_f['f1'].append(f1_xgb)
         xgb_metrics_f['gmean'].append(gmean_xgb)
         
-        print(f"Fold {fold+1} Fraud Model - LR AUC: {auc_lr:.4f} | XGB AUC: {auc_xgb:.4f}")
+        # 3. Balanced Random Forest (GridSearchCV)
+        brf_param_grid = {
+            'n_estimators': [100, 300, 500],
+            'max_depth': [4, 6],
+            'min_samples_leaf': [2, 4]
+        }
+        brf_grid = GridSearchCV(
+            estimator=BalancedRandomForestClassifier(replacement=False, random_state=42, n_jobs=-1),
+            param_grid=brf_param_grid,
+            scoring='average_precision',
+            cv=3,
+            n_jobs=-1
+        )
+        brf_grid.fit(X_train, y_train)
+        best_brf_f = brf_grid.best_estimator_
+        
+        y_prob_brf = best_brf_f.predict_proba(X_test)[:, 1]
+        y_pred_brf = best_brf_f.predict(X_test)
+        
+        brf_oof_probs_f[test_idx] = y_prob_brf
+        brf_oof_preds_f[test_idx] = y_pred_brf
+        
+        # Metrics BRF
+        auc_brf = roc_auc_score(y_test, y_prob_brf)
+        prec_brf, rec_brf, _ = precision_recall_curve(y_test, y_prob_brf)
+        pr_auc_brf = auc(rec_brf, prec_brf)
+        f1_brf = f1_score(y_test, y_pred_brf)
+        gmean_brf = compute_g_mean(y_test, y_pred_brf)
+        
+        brf_metrics_f['auc'].append(auc_brf)
+        brf_metrics_f['pr_auc'].append(pr_auc_brf)
+        brf_metrics_f['f1'].append(f1_brf)
+        brf_metrics_f['gmean'].append(gmean_brf)
+        
+        print(f"Fold {fold+1} Fraud Model - LR AUC: {auc_lr:.4f} | XGB AUC: {auc_xgb:.4f} | BRF AUC: {auc_brf:.4f}")
 
     print("\n" + "-"*40)
     print(" SUMMARY METRICS (5-FOLD OOF AVERAGE) ")
@@ -497,6 +602,11 @@ def train_and_evaluate():
     print(f"  PR-AUC  : {np.mean(xgb_metrics_f['pr_auc']):.4f} +/- {np.std(xgb_metrics_f['pr_auc']):.4f}")
     print(f"  F1-Score: {np.mean(xgb_metrics_f['f1']):.4f} +/- {np.std(xgb_metrics_f['f1']):.4f}")
     print(f"  G-Mean  : {np.mean(xgb_metrics_f['gmean']):.4f} +/- {np.std(xgb_metrics_f['gmean']):.4f}")
+    print("Balanced Random Forest (Fraud Detection):")
+    print(f"  ROC-AUC : {np.mean(brf_metrics_f['auc']):.4f} +/- {np.std(brf_metrics_f['auc']):.4f}")
+    print(f"  PR-AUC  : {np.mean(brf_metrics_f['pr_auc']):.4f} +/- {np.std(brf_metrics_f['pr_auc']):.4f}")
+    print(f"  F1-Score: {np.mean(brf_metrics_f['f1']):.4f} +/- {np.std(brf_metrics_f['f1']):.4f}")
+    print(f"  G-Mean  : {np.mean(brf_metrics_f['gmean']):.4f} +/- {np.std(brf_metrics_f['gmean']):.4f}")
 
     # Plot Combined ROC and PR curves
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
@@ -504,8 +614,10 @@ def train_and_evaluate():
     # ROC Plot
     fpr_lr_f, tpr_lr_f, _ = roc_curve(y_frd, lr_oof_probs_f)
     fpr_xgb_f, tpr_xgb_f, _ = roc_curve(y_frd, xgb_oof_probs_f)
+    fpr_brf_f, tpr_brf_f, _ = roc_curve(y_frd, brf_oof_probs_f)
     ax1.plot(fpr_lr_f, tpr_lr_f, label=f'Logistic Regression (AUC = {roc_auc_score(y_frd, lr_oof_probs_f):.3f})')
     ax1.plot(fpr_xgb_f, tpr_xgb_f, label=f'XGBoost (AUC = {roc_auc_score(y_frd, xgb_oof_probs_f):.3f})')
+    ax1.plot(fpr_brf_f, tpr_brf_f, label=f'Balanced Random Forest (AUC = {roc_auc_score(y_frd, brf_oof_probs_f):.3f})')
     ax1.plot([0, 1], [0, 1], 'k--', label='Random Guess')
     ax1.set_xlabel('False Positive Rate')
     ax1.set_ylabel('True Positive Rate')
@@ -516,8 +628,10 @@ def train_and_evaluate():
     # PR Plot
     prec_lr_f_full, rec_lr_f_full, _ = precision_recall_curve(y_frd, lr_oof_probs_f)
     prec_xgb_f_full, rec_xgb_f_full, _ = precision_recall_curve(y_frd, xgb_oof_probs_f)
+    prec_brf_f_full, rec_brf_f_full, _ = precision_recall_curve(y_frd, brf_oof_probs_f)
     ax2.plot(rec_lr_f_full, prec_lr_f_full, label=f'Logistic Regression (PR-AUC = {auc(rec_lr_f_full, prec_lr_f_full):.3f})')
     ax2.plot(rec_xgb_f_full, prec_xgb_f_full, label=f'XGBoost (PR-AUC = {auc(rec_xgb_f_full, prec_xgb_f_full):.3f})')
+    ax2.plot(rec_brf_f_full, prec_brf_f_full, label=f'Balanced Random Forest (PR-AUC = {auc(rec_brf_f_full, prec_brf_f_full):.3f})')
     ax2.set_xlabel('Recall')
     ax2.set_ylabel('Precision')
     ax2.set_title('Precision-Recall Curve (Fraud Detection - OOF)')
@@ -533,7 +647,13 @@ def train_and_evaluate():
     # Select best architecture
     mean_auc_xgb_f = np.mean(xgb_metrics_f['auc'])
     mean_auc_lr_f = np.mean(lr_metrics_f['auc'])
-    if mean_auc_xgb_f >= mean_auc_lr_f:
+    mean_auc_brf_f = np.mean(brf_metrics_f['auc'])
+    
+    best_frd_auc = max(mean_auc_xgb_f, mean_auc_lr_f, mean_auc_brf_f)
+    if best_frd_auc == mean_auc_brf_f:
+        print("\n--> Balanced Random Forest selected as the best Fraud detection architecture.")
+        best_frd_type = 'brf'
+    elif best_frd_auc == mean_auc_xgb_f:
         print("\n--> XGBoost selected as the best Fraud detection architecture.")
         best_frd_type = 'xgb'
     else:
@@ -544,7 +664,22 @@ def train_and_evaluate():
     final_scaler_frd = StandardScaler()
     X_frd_scaled = final_scaler_frd.fit_transform(X_frd)
     
-    if best_frd_type == 'xgb':
+    if best_frd_type == 'brf':
+        brf_param_grid = {
+            'n_estimators': [100, 300, 500],
+            'max_depth': [4, 6],
+            'min_samples_leaf': [2, 4]
+        }
+        brf_grid_full = GridSearchCV(
+            estimator=BalancedRandomForestClassifier(replacement=False, random_state=42, n_jobs=-1),
+            param_grid=brf_param_grid,
+            scoring='average_precision',
+            cv=3,
+            n_jobs=-1
+        )
+        brf_grid_full.fit(X_frd, y_frd)
+        best_frd_model = brf_grid_full.best_estimator_
+    elif best_frd_type == 'xgb':
         pos_weight_frd_full = (len(y_frd) - sum(y_frd)) / sum(y_frd) if sum(y_frd) > 0 else 1.0
         best_frd_model = XGBClassifier(scale_pos_weight=pos_weight_frd_full, eval_metric='logloss', random_state=42)
         best_frd_model.fit(X_frd, y_frd)
@@ -560,7 +695,7 @@ def train_and_evaluate():
 
     # --- Permutation Feature Importance & Monte Carlo for Fraud Detection ---
     print("\nCalculating Permutation Feature Importance for Fraud Detection...")
-    pfi_f1_f, pfi_gmean_f = run_permutation_importance(best_frd_model, X_frd, y_frd, is_xgb=(best_frd_type=='xgb'), scaler=final_scaler_frd)
+    pfi_f1_f, pfi_gmean_f = run_permutation_importance(best_frd_model, X_frd, y_frd, is_xgb=(best_frd_type in ['xgb', 'brf']), scaler=final_scaler_frd)
     print("\nPermutation Feature Importance (Top Features causing F1 Score Drop):")
     sorted_pfi_f = sorted(pfi_f1_f.items(), key=lambda x: x[1], reverse=True)
     for feat, score in sorted_pfi_f[:7]:
@@ -568,7 +703,7 @@ def train_and_evaluate():
 
     print("\nRunning Monte Carlo Noise Injection Simulator for Fraud Detection...")
     mc_results_frd = run_monte_carlo_noise_test(
-        best_frd_model, X_frd, y_frd, is_xgb=(best_frd_type=='xgb'), 
+        best_frd_model, X_frd, y_frd, is_xgb=(best_frd_type in ['xgb', 'brf']), 
         scaler=final_scaler_frd, suspect_features=suspect_features_frd, num_simulations=50
     )
     
@@ -618,6 +753,16 @@ def train_and_evaluate():
                 "g_mean_cv": float(np.mean(xgb_metrics['gmean'])),
                 "g_mean_cv_std": float(np.std(xgb_metrics['gmean']))
             },
+            "balanced_random_forest": {
+                "roc_auc_cv": float(np.mean(brf_metrics['auc'])),
+                "roc_auc_cv_std": float(np.std(brf_metrics['auc'])),
+                "pr_auc_cv": float(np.mean(brf_metrics['pr_auc'])),
+                "pr_auc_cv_std": float(np.std(brf_metrics['pr_auc'])),
+                "f1_score_cv": float(np.mean(brf_metrics['f1'])),
+                "f1_score_cv_std": float(np.std(brf_metrics['f1'])),
+                "g_mean_cv": float(np.mean(brf_metrics['gmean'])),
+                "g_mean_cv_std": float(np.std(brf_metrics['gmean']))
+            },
             "selected_model": best_def_type
         },
         "fraud_detection_model": {
@@ -640,6 +785,16 @@ def train_and_evaluate():
                 "f1_score_cv_std": float(np.std(xgb_metrics_f['f1'])),
                 "g_mean_cv": float(np.mean(xgb_metrics_f['gmean'])),
                 "g_mean_cv_std": float(np.std(xgb_metrics_f['gmean']))
+            },
+            "balanced_random_forest": {
+                "roc_auc_cv": float(np.mean(brf_metrics_f['auc'])),
+                "roc_auc_cv_std": float(np.std(brf_metrics_f['auc'])),
+                "pr_auc_cv": float(np.mean(brf_metrics_f['pr_auc'])),
+                "pr_auc_cv_std": float(np.std(brf_metrics_f['pr_auc'])),
+                "f1_score_cv": float(np.mean(brf_metrics_f['f1'])),
+                "f1_score_cv_std": float(np.std(brf_metrics_f['f1'])),
+                "g_mean_cv": float(np.mean(brf_metrics_f['gmean'])),
+                "g_mean_cv_std": float(np.std(brf_metrics_f['gmean']))
             },
             "selected_model": best_frd_type
         }

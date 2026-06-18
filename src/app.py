@@ -174,6 +174,16 @@ with tabs[3]:
             
             dti = total_debt / yearly_income if yearly_income > 0 else 0
             
+            # Tính các đặc trưng phái sinh của Fraud phục vụ cho Default Model và hiển thị
+            _sec_heavy = 1 if security_error_count >= 3 else 0
+            _high_online = 1 if online_tx_rate > 0.70 else 0
+            fraud_signal_score_display = (
+                2 * _sec_heavy +
+                2 * has_spatiotemporal_fraud_signal +
+                1 * (1 if refund_rate > 0.10 else 0) +
+                1 * _high_online
+            )
+
             input_def = {
                 'current_age': current_age,
                 'yearly_income': yearly_income,
@@ -193,21 +203,14 @@ with tabs[3]:
                 'online_tx_rate': online_tx_rate,
                 'essential_spend_ratio': essential_spend_ratio,
                 'cur_30d': cur_30d,
-                'dormant_card_ratio': dormant_card_ratio
+                'dormant_card_ratio': dormant_card_ratio,
+                'security_error_count_heavy': _sec_heavy,
+                'high_online_rate': _high_online,
+                'fraud_signal_score': fraud_signal_score_display
             }
-
-            # Tính fraud_signal_score để hiển thị (không dùng làm feature đầu vào mô hình)
-            _sec_heavy = 1 if security_error_count >= 3 else 0
-            _high_online = 1 if online_tx_rate > 0.70 else 0
-            fraud_signal_score_display = (
-                2 * _sec_heavy +
-                2 * has_spatiotemporal_fraud_signal +
-                1 * (1 if refund_rate > 0.10 else 0) +
-                1 * _high_online
-            )
             df_def = pd.DataFrame([input_def])[default_dict['features']]
             X_def_scaled = default_scaler.transform(df_def)
-            if default_dict['type'] == 'xgb':
+            if default_dict['type'] in ['xgb', 'brf']:
                 prob_def = default_dict['model'].predict_proba(df_def)[0, 1]
             else:
                 prob_def = default_dict['model'].predict_proba(X_def_scaled)[0, 1]
@@ -221,7 +224,7 @@ with tabs[3]:
             
             df_frd = pd.DataFrame([input_frd])[fraud_dict['features']]
             X_frd_scaled = fraud_scaler.transform(df_frd)
-            if fraud_dict['type'] == 'xgb':
+            if fraud_dict['type'] in ['xgb', 'brf']:
                 prob_frd = fraud_dict['model'].predict_proba(df_frd)[0, 1]
             else:
                 prob_frd = fraud_dict['model'].predict_proba(X_frd_scaled)[0, 1]

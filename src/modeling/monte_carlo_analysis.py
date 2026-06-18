@@ -35,7 +35,7 @@ def run_monte_carlo_analysis():
     with open(model_path, "rb") as f:
         model_dict = pickle.load(f)
     model = model_dict['model']
-    is_xgb = (model_dict['type'] == 'xgb')
+    is_xgb = (model_dict['type'] in ['xgb', 'brf'])
     features = model_dict['features']
 
     scaler_path = os.path.join("models", "default_scaler.pkl")

@@ -37,9 +37,11 @@ def _trim_metrics(m):
         if isinstance(v, dict):
             lr = v.get("logistic_regression", {})
             xgb = v.get("xgboost", {})
+            brf = v.get("balanced_random_forest", {})
             out[k] = {
                 "LR_AUC": lr.get("roc_auc_cv"), "LR_F1": lr.get("f1_score_cv"), "LR_GMean": lr.get("g_mean_cv"),
                 "XGB_AUC": xgb.get("roc_auc_cv"), "XGB_F1": xgb.get("f1_score_cv"),
+                "BRF_AUC": brf.get("roc_auc_cv"), "BRF_F1": brf.get("f1_score_cv"), "BRF_GMean": brf.get("g_mean_cv"),
                 "selected": v.get("selected_model")
             }
     return out
